@@ -435,8 +435,15 @@ def main():
         ckpt = torch.load(args.resume, map_location="cpu", weights_only=False)
         if "config" in ckpt:
             model_config = ckpt["config"]
+            # Fill in any new config fields that the old checkpoint doesn't have
+            import dataclasses
+            cli_config = config_map[args.config]
+            for field in dataclasses.fields(cli_config):
+                if not hasattr(model_config, field.name):
+                    setattr(model_config, field.name, getattr(cli_config, field.name))
             print(f"  Using checkpoint config: d_model={model_config.d_model}, "
                   f"n_blocks={model_config.n_blocks}, n_experts={model_config.n_experts}")
+            print(f"  focal_loss_gamma={model_config.focal_loss_gamma}")
         else:
             model_config = config_map[args.config]
             print(f"  No config in checkpoint, using --config={args.config}")
