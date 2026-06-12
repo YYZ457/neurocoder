@@ -159,6 +159,19 @@ CONFIG_SMALL = NeuroCoderConfig(
     gradient_accumulation=8,
 )
 
+# Cloud config: optimized for 48GB AMD GPU (~1.37B total, ~172M active)
+CONFIG_CLOUD = NeuroCoderConfig(
+    d_model=640,
+    n_blocks=14,
+    n_experts=24,
+    n_active_experts=2,
+    expert_dim=2048,
+    ssm_state_dim=24,
+    ssm_dt_rank=64,
+    batch_size=4,
+    gradient_accumulation=8,
+)
+
 # Aggressive config — pushes 4060 to its limit (~350M params)
 CONFIG_MAX = NeuroCoderConfig(
     d_model=640,
