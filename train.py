@@ -330,6 +330,11 @@ def train(
                 save_checkpoint(model, optimizer, scheduler, scaler, stats, model_config,
                                os.path.join(train_config.output_dir, "latest.pt"))
                 print(f"  [Save] Checkpoint saved at step {global_step}")
+                # Keep only last 2 checkpoints to save disk space
+                old_ckpts = sorted(Path(train_config.output_dir).glob("checkpoint-*.pt"))
+                for old in old_ckpts[:-2]:
+                    old.unlink(missing_ok=True)
+                    print(f"  [Clean] Removed old checkpoint: {old.name}")
 
     except (KeyboardInterrupt, Exception) as e:
         print(f"\n  [!] Interrupted: {type(e).__name__}: {e}")
@@ -423,7 +428,20 @@ def main():
         "max": CONFIG_MAX,
         "cloud": CONFIG_CLOUD,
     }
-    model_config = config_map[args.config]
+
+    # When resuming, load the checkpoint's original config to avoid architecture mismatch
+    if args.resume:
+        print(f"Loading checkpoint config from {args.resume}...")
+        ckpt = torch.load(args.resume, map_location="cpu", weights_only=False)
+        if "config" in ckpt:
+            model_config = ckpt["config"]
+            print(f"  Using checkpoint config: d_model={model_config.d_model}, "
+                  f"n_blocks={model_config.n_blocks}, n_experts={model_config.n_experts}")
+        else:
+            model_config = config_map[args.config]
+            print(f"  No config in checkpoint, using --config={args.config}")
+    else:
+        model_config = config_map[args.config]
 
     if args.steps > 0:
         model_config.max_steps = args.steps

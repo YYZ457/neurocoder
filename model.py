@@ -743,13 +743,30 @@ class NeuroCoder(nn.Module):
             shift_logits = logits[:, :-1, :].contiguous()
             shift_labels = labels[:, 1:].contiguous()
 
-            # Cross-entropy loss
-            ce_loss = F.cross_entropy(
-                shift_logits.reshape(-1, self.config.vocab_size),
-                shift_labels.reshape(-1),
-                ignore_index=self.config.pad_token_id,
-                reduction='mean',
-            )
+            # Cross-entropy loss (with optional Focal Loss weighting)
+            gamma = getattr(self.config, 'focal_loss_gamma', 0.0)
+            if gamma > 0:
+                # Per-token CE (ignored positions = 0)
+                ce_per_token = F.cross_entropy(
+                    shift_logits.reshape(-1, self.config.vocab_size),
+                    shift_labels.reshape(-1),
+                    ignore_index=self.config.pad_token_id,
+                    reduction='none',
+                )
+                # Focal weighting: (1 - pt)^gamma, down-weights easy tokens
+                pt = torch.exp(-ce_per_token)  # model confidence for correct token
+                weight = (1 - pt) ** gamma
+                focal_loss = weight * ce_per_token
+                # Mean over non-ignored positions only
+                mask = (shift_labels.reshape(-1) != self.config.pad_token_id).float()
+                ce_loss = focal_loss.sum() / mask.sum()
+            else:
+                ce_loss = F.cross_entropy(
+                    shift_logits.reshape(-1, self.config.vocab_size),
+                    shift_labels.reshape(-1),
+                    ignore_index=self.config.pad_token_id,
+                    reduction='mean',
+                )
 
             # Total loss = CE + auxiliary (load balancing + z-loss)
             total_loss = ce_loss + total_aux_loss / max(len(self.blocks), 1)

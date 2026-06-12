@@ -298,7 +298,7 @@ class PythonCodeDataset(Dataset):
     @classmethod
     def from_cache(cls, cache_path: str, max_seq_len: int = 2048):
         """Load pre-tokenized dataset from cache."""
-        data = torch.load(cache_path)
+        data = torch.load(cache_path, weights_only=False)
         dataset = cls.__new__(cls)
         dataset.examples = data["examples"]
         dataset.max_seq_len = max_seq_len
