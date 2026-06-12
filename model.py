@@ -795,7 +795,7 @@ class NeuroCoder(nn.Module):
 
         generated = input_ids
 
-        for _ in range(max_new_tokens):
+        for step_idx in range(max_new_tokens):
             # Truncate to max sequence length
             if generated.shape[1] > self.config.max_seq_len:
                 generated = generated[:, -self.config.max_seq_len:]
@@ -826,6 +826,10 @@ class NeuroCoder(nn.Module):
                     1, sorted_indices, sorted_indices_to_remove
                 )
                 logits[indices_to_remove] = float('-inf')
+
+            # Suppress EOS for first 3 tokens (prevents premature stop)
+            if step_idx < 3:
+                logits[:, eos_token_id] = float('-inf')
 
             # Sample
             probs = F.softmax(logits, dim=-1)
