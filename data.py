@@ -85,9 +85,20 @@ class CodeTokenizer:
             show_progress=True,
         )
 
-        # Train from downloaded Python files
-        source_dir = "sample_data/source"
-        py_files = list(Path(source_dir).rglob("*.py")) if os.path.exists(source_dir) else []
+        # Search multiple possible paths for training data
+        search_paths = [
+            "sample_data/source",
+            "D:/NeuroCoder/sample_data/source",
+            "/workspace/neurocoder/D:/NeuroCoder/sample_data/source",
+        ]
+        py_files = []
+        for sp in search_paths:
+            p = Path(sp)
+            if p.exists():
+                py_files = list(p.rglob("*.py"))[:5000]
+                if py_files:
+                    print(f"  Found data at: {sp}")
+                    break
         if py_files:
             files = [str(f) for f in py_files[:5000]]  # Up to 5000 files for training
             print(f"  Training BPE from {len(files)} Python files...")
