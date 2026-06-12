@@ -34,7 +34,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from config import NeuroCoderConfig, TrainingConfig, CONFIG_4060, CONFIG_SMALL, CONFIG_MAX
+from config import NeuroCoderConfig, TrainingConfig, CONFIG_4060, CONFIG_SMALL, CONFIG_MAX, CONFIG_CLOUD
 from model import NeuroCoder
 from data import CodeTokenizer, create_dataloaders, download_sample_data
 
@@ -397,7 +397,7 @@ def evaluate(model, eval_loader, device, config, max_batches=20):
 def main():
     parser = argparse.ArgumentParser(description="Train NeuroCoder")
     parser.add_argument("--config", type=str, default="default",
-                        choices=["default", "small", "max"],
+                        choices=["default", "small", "max", "cloud"],
                         help="Model configuration preset")
     parser.add_argument("--data", type=str, default="",
                         help="Path to training data")
@@ -418,6 +418,7 @@ def main():
         "default": CONFIG_4060,
         "small": CONFIG_SMALL,
         "max": CONFIG_MAX,
+        "cloud": CONFIG_CLOUD,
     }
     model_config = config_map[args.config]
 
