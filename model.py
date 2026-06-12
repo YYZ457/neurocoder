@@ -776,6 +776,8 @@ class NeuroCoder(nn.Module):
                 result["ce_loss"] = ce_loss
                 result["ce_raw"] = ce_loss
 
+            result["loss"] = total_loss
+
             # Perplexity
             with torch.no_grad():
                 result["perplexity"] = torch.exp(ce_loss.clamp(max=20))
