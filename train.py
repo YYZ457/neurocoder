@@ -129,8 +129,11 @@ def save_checkpoint(
         },
         "config": config,
     }
-    torch.save(checkpoint, path)
-    print(f"  [Save] Saved checkpoint: {path}")
+    try:
+        torch.save(checkpoint, path)
+        print(f"  [Save] Saved checkpoint: {path}")
+    except Exception as e:
+        print(f"  [Warn] Save failed (training continues): {e}")
 
 
 def load_checkpoint(path: str, model, optimizer=None, scheduler=None, scaler=None):
