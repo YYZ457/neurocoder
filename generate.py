@@ -160,16 +160,18 @@ class CodeGenerator:
             print(f"\n  Generating (temp={temperature}, top_p={top_p}, max_tokens={max_tokens})...")
             print("  " + "-" * 56)
 
-            generated = self.generate(
-                prompt=user_input,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                top_p=top_p,
-                top_k=top_k,
-            )
+            try:
+                generated = self.generate(
+                    prompt=user_input,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    top_p=top_p,
+                    top_k=top_k,
+                )
+                print(generated if generated.strip() else "  (no output yet, model still learning)")
+            except Exception as e:
+                print(f"  [Error] {e}")
 
-            # Display
-            print(generated)
             print("  " + "-" * 56)
 
 
