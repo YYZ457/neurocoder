@@ -58,7 +58,7 @@ class TrainingStats:
         self.eval_history = []
         self.lr_history = []
 
-    def update(self, loss, ce_loss, aux_loss, lr, tokens_per_step):
+    def update(self, loss, ce_loss, aux_loss, lr, tokens_per_step, ce_raw=None):
         self.step += 1
         self.total_steps += 1
         self.total_tokens += tokens_per_step
@@ -66,6 +66,7 @@ class TrainingStats:
             "step": self.total_steps,
             "loss": loss,
             "ce_loss": ce_loss,
+            "ce_raw": ce_raw if ce_raw is not None else ce_loss,
             "aux_loss": aux_loss,
             "lr": lr,
         })
@@ -264,6 +265,7 @@ def train(
             accum_loss = 0.0
             accum_ce = 0.0
             accum_aux = 0.0
+            accum_ce_raw = 0.0
 
             # Gradient accumulation
             for micro_step in range(model_config.gradient_accumulation):
@@ -283,12 +285,14 @@ def train(
                     loss = outputs["loss"] / model_config.gradient_accumulation
                     ce_loss = outputs["ce_loss"]
                     aux_loss = outputs["aux_loss"]
+                    ce_raw = outputs.get("ce_raw", ce_loss)
 
                 scaler.scale(loss).backward()
 
                 accum_loss += loss.item()
                 accum_ce += ce_loss.item() / model_config.gradient_accumulation
                 accum_aux += aux_loss.item() / model_config.gradient_accumulation
+                accum_ce_raw += ce_raw.item() / model_config.gradient_accumulation
 
             # Gradient clipping
             scaler.unscale_(optimizer)
@@ -317,7 +321,8 @@ def train(
             print(f"  Step {global_step:>5d}/{model_config.max_steps} | "
                   f"Loss: {accum_loss:.4f} | CE: {accum_ce:.4f} | "
                   f"LR: {current_lr:.2e} | {step_time:.1f}s | VRAM: {vram:.1f}GB | "
-                  f"ETA: {eta_h}h{eta_m}m")
+                  f"ETA: {eta_h}h{eta_m}m"
+                  + (f" | RawCE: {accum_ce_raw:.4f}" if accum_ce_raw != accum_ce else ""))
 
             if eval_loader is not None and global_step % train_config.eval_every == 0:
                 eval_loss, eval_ppl = evaluate(model, eval_loader, device, model_config)

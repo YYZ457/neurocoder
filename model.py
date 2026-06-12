@@ -745,34 +745,36 @@ class NeuroCoder(nn.Module):
 
             # Cross-entropy loss (with optional Focal Loss weighting)
             gamma = getattr(self.config, 'focal_loss_gamma', 0.0)
+
+            # Standard CE (always computed for monitoring)
+            ce_loss = F.cross_entropy(
+                shift_logits.reshape(-1, self.config.vocab_size),
+                shift_labels.reshape(-1),
+                ignore_index=self.config.pad_token_id,
+                reduction='mean',
+            )
+
             if gamma > 0:
-                # Per-token CE (ignored positions = 0)
+                # Focal Loss: (1 - pt)^gamma * CE, down-weights easy tokens
                 ce_per_token = F.cross_entropy(
                     shift_logits.reshape(-1, self.config.vocab_size),
                     shift_labels.reshape(-1),
                     ignore_index=self.config.pad_token_id,
                     reduction='none',
                 )
-                # Focal weighting: (1 - pt)^gamma, down-weights easy tokens
-                pt = torch.exp(-ce_per_token)  # model confidence for correct token
+                pt = torch.exp(-ce_per_token)
                 weight = (1 - pt) ** gamma
-                focal_loss = weight * ce_per_token
-                # Mean over non-ignored positions only
+                focal_per_token = weight * ce_per_token
                 mask = (shift_labels.reshape(-1) != self.config.pad_token_id).float()
-                ce_loss = focal_loss.sum() / mask.sum()
+                focal_loss = focal_per_token.sum() / mask.sum()
+                # Use focal loss for training, but report both
+                total_loss = focal_loss + total_aux_loss / max(len(self.blocks), 1)
+                result["ce_loss"] = focal_loss  # training loss
+                result["ce_raw"] = ce_loss      # standard CE for monitoring
             else:
-                ce_loss = F.cross_entropy(
-                    shift_logits.reshape(-1, self.config.vocab_size),
-                    shift_labels.reshape(-1),
-                    ignore_index=self.config.pad_token_id,
-                    reduction='mean',
-                )
-
-            # Total loss = CE + auxiliary (load balancing + z-loss)
-            total_loss = ce_loss + total_aux_loss / max(len(self.blocks), 1)
-
-            result["loss"] = total_loss
-            result["ce_loss"] = ce_loss
+                total_loss = ce_loss + total_aux_loss / max(len(self.blocks), 1)
+                result["ce_loss"] = ce_loss
+                result["ce_raw"] = ce_loss
 
             # Perplexity
             with torch.no_grad():
