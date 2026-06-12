@@ -5,7 +5,7 @@ Includes English and Chinese Python repos.
 import os, subprocess, sys, shutil, re, time
 from pathlib import Path
 
-DATA_DIR = "D:/NeuroCoder/sample_data/source"
+DATA_DIR = "sample_data/source"
 os.makedirs(DATA_DIR, exist_ok=True)
 
 # ---------------------------------------------------------------------------

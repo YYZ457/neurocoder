@@ -108,11 +108,11 @@ class TrainingConfig:
     # Data
     train_data_path: str = ""
     eval_data_path: str = ""
-    data_cache_dir: str = "D:/NeuroCoder/data_cache"
+    data_cache_dir: str = "data_cache"
 
     # Output
-    output_dir: str = "D:/NeuroCoder/checkpoints"
-    log_dir: str = "D:/NeuroCoder/logs"
+    output_dir: str = "checkpoints"
+    log_dir: str = "logs"
     save_every: int = 500
     eval_every: int = 500
     log_every: int = 10

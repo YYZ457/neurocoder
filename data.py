@@ -36,7 +36,7 @@ class CodeTokenizer:
     def __init__(
         self,
         vocab_size: int = 32768,
-        cache_dir: str = "D:/NeuroCoder/tokenizer_cache",
+        cache_dir: str = "tokenizer_cache",
     ):
         self.vocab_size = vocab_size
         self.cache_dir = cache_dir
@@ -86,7 +86,7 @@ class CodeTokenizer:
         )
 
         # Train from downloaded Python files
-        source_dir = "D:/NeuroCoder/sample_data/source"
+        source_dir = "sample_data/source"
         py_files = list(Path(source_dir).rglob("*.py")) if os.path.exists(source_dir) else []
         if py_files:
             files = [str(f) for f in py_files[:5000]]  # Up to 5000 files for training
@@ -398,7 +398,7 @@ def create_dataloaders(
     tokenizer: CodeTokenizer,
     config,  # NeuroCoderConfig
     eval_path: Optional[str] = None,
-    cache_dir: str = "D:/NeuroCoder/data_cache",
+    cache_dir: str = "data_cache",
     num_workers: int = 2,
 ) -> tuple:
     """
@@ -463,7 +463,7 @@ def create_dataloaders(
     return train_loader, eval_loader
 
 
-def download_sample_data(output_dir: str = "D:/NeuroCoder/sample_data"):
+def download_sample_data(output_dir: str = "sample_data"):
     """
     Download some sample Python code for initial testing.
     Uses the Python standard library as a small, high-quality dataset.

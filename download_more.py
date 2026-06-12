@@ -4,7 +4,7 @@ Phase 2: Download more data + Chinese text corpus.
 import os, subprocess, sys, json
 from pathlib import Path
 
-DATA_DIR = "D:/NeuroCoder/sample_data/source"
+DATA_DIR = "sample_data/source"
 os.makedirs(DATA_DIR, exist_ok=True)
 
 

@@ -403,7 +403,7 @@ def main():
                         help="Path to training data")
     parser.add_argument("--eval-data", type=str, default="",
                         help="Path to evaluation data")
-    parser.add_argument("--output", type=str, default="D:/NeuroCoder/checkpoints",
+    parser.add_argument("--output", type=str, default="checkpoints",
                         help="Output directory for checkpoints")
     parser.add_argument("--steps", type=int, default=0,
                         help="Override max training steps")
@@ -445,7 +445,7 @@ def main():
 
     # Create tokenizer
     print("\nInitializing tokenizer...")
-    tokenizer = CodeTokenizer(cache_dir="D:/NeuroCoder/tokenizer_cache")
+    tokenizer = CodeTokenizer()  # uses relative paths
 
     # Create dataloaders
     print("\nPreparing data...")

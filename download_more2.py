@@ -5,7 +5,7 @@ Clones to the same source/ directory as existing data.
 import os, subprocess, time
 from pathlib import Path
 
-DATA_DIR = "D:/NeuroCoder/sample_data/source"
+DATA_DIR = "sample_data/source"
 os.makedirs(DATA_DIR, exist_ok=True)
 
 def clone(repo, branch="main"):
