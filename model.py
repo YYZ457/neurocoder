@@ -831,8 +831,13 @@ class NeuroCoder(nn.Module):
             if step_idx < 3:
                 logits[:, eos_token_id] = float('-inf')
 
+            # NaN guard: prevent GPU crashes from extreme values
+            logits = torch.nan_to_num(logits, nan=-100.0, posinf=-100.0, neginf=-100.0)
+
             # Sample
             probs = F.softmax(logits, dim=-1)
+            probs = torch.clamp(probs, min=1e-10, max=1.0)
+            probs = probs / probs.sum(dim=-1, keepdim=True)
             next_token = torch.multinomial(probs, num_samples=1)  # (B, 1)
 
             # Append
