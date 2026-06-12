@@ -142,6 +142,7 @@ CONFIG_4060 = NeuroCoderConfig(
     ssm_dt_rank=64,
     batch_size=2,
     gradient_accumulation=8,
+    max_seq_len=8192,  # 8192 tokens for code + chinese conversations
     use_bf16=True,
     use_gradient_checkpointing=True,
 )
