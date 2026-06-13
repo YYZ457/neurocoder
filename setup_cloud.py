@@ -85,9 +85,20 @@ print("  Downloading Chinese data from ModelScope")
 print("=" * 60)
 
 # =============================================================
-# 1. deepctrl-sft-data — 11.38M Chinese SFT conversations!
+# 1. qiaojiedongfeng — 用户指定的中文对话数据集
 # =============================================================
-print("\n[1/4] deepctrl-sft-data (11.38M Chinese conversations)...")
+print("\n[1/3] qiaojiedongfeng (中文对话数据集)...")
+qjd_dir = DATA_DIR / "qjd"
+qjd_dir.mkdir(exist_ok=True)
+
+if clone_ms("qiaojiedongfeng/qiaojiedongfeng", "qjd"):
+    # Auto-convert whatever format
+    jsonl_to_txt(DATA_DIR / "qjd" / "qiaojiedongfeng", DATA_DIR / "_txt", "qjd")
+
+# =============================================================
+# 2. deepctrl-sft-data — 11.38M Chinese SFT conversations
+# =============================================================
+print("\n[2/3] deepctrl-sft-data (1138万条中文对话)...")
 sft_dir = DATA_DIR / "sft"
 sft_dir.mkdir(exist_ok=True)
 
@@ -95,34 +106,9 @@ if clone_ms("AI-ModelScope/deepctrl-sft-data", "sft"):
     jsonl_to_txt(DATA_DIR / "sft" / "deepctrl-sft-data", DATA_DIR / "_txt", "deepctrl_sft")
 
 # =============================================================
-# 2. SFT-Chinese-Dataset — Firefly 1.1M + ShareGPT 90K
+# 3. Generate conversation backup
 # =============================================================
-print("\n[2/4] SFT-Chinese-Dataset (Firefly + ShareGPT)...")
-sft2_dir = DATA_DIR / "sft2"
-sft2_dir.mkdir(exist_ok=True)
-
-if clone_ms("zhuangxialie/SFT-Chinese-Dataset", "sft2"):
-    jsonl_to_txt(DATA_DIR / "sft2" / "SFT-Chinese-Dataset", DATA_DIR / "_txt", "sft_chinese")
-
-# =============================================================
-# 3. BAAI/IndustryCorpus — Chinese industry text
-# =============================================================
-print("\n[3/4] BAAI IndustryCorpus (行业语料)...")
-ind_dir = DATA_DIR / "industry"
-ind_dir.mkdir(exist_ok=True)
-
-for repo in [
-    "BAAI/IndustryCorpus_tech",
-    "BAAI/IndustryCorpus_literature",
-    "BAAI/IndustryCorpus_news",
-    "BAAI/IndustryCorpus_education",
-]:
-    clone_ms(repo, "industry")
-
-# =============================================================
-# 4. Generate conversation backup
-# =============================================================
-print("\n[4/4] Generating conversation backup...")
+print("\n[3/3] Generating conversation backup...")
 chat_file = DATA_DIR / "_chats" / "chats.txt"
 if not chat_file.exists():
     Path(DATA_DIR / "_chats").mkdir(exist_ok=True)
