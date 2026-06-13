@@ -276,7 +276,11 @@ class PythonCodeDataset(Dataset):
 
         for code_file in tqdm(all_files, desc="  Tokenizing", unit="file"):
             try:
-                code = code_file.read_text(encoding="utf-8")
+                # Read only first 50MB to avoid OOM on huge files
+                size = code_file.stat().st_size
+                max_read = min(size, 50 * 1024 * 1024) if size > 100_000_000 else size
+                with open(code_file, "r", encoding="utf-8", errors="ignore") as fh:
+                    code = fh.read(max_read)
                 chunks = self._tokenize_and_chunk(code)
                 self.examples.extend(chunks)
             except Exception as e:
