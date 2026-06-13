@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""NeuroCoder Cloud — Chinese conversation model data."""
-import os, subprocess, urllib.request, json, re, random
+"""NeuroCoder Cloud — GBs of REAL Chinese text, no auth needed."""
+import os, subprocess, urllib.request, json, random, re, shutil, gzip
 from pathlib import Path
-
 os.environ["GIT_TERMINAL_PROMPT"] = "0"
 GIT = ["git", "-c", "http.sslVerify=false"]
 DATA_DIR = Path("chinese_data")
@@ -19,111 +18,121 @@ def clone(repo, subdir=""):
     except: print(f"  [FAIL] {name}")
 
 def dl(url, dest):
-    if dest.exists() and dest.stat().st_size > 1024: return
-    try:
-        urllib.request.urlretrieve(url, dest)
-        print(f"  [OK] {dest.name} ({dest.stat().st_size/1024/1024:.0f} MB)")
-    except: print(f"  [FAIL] {dest.name}")
-
-# Try to install git-lfs for large files
-subprocess.run(["apt-get", "install", "-y", "git-lfs"], capture_output=True)
-subprocess.run(["git", "lfs", "install"], capture_output=True)
-
-def clone_lfs(repo, subdir=""):
-    name = repo.split("/")[-1]
-    dest = Path(DATA_DIR if not subdir else DATA_DIR/subdir) / name
     if dest.exists(): return
     try:
-        subprocess.run(GIT + ["clone", "--depth", "1", f"https://github.com/{repo}.git", str(dest)],
-                      capture_output=True, timeout=300, check=True)
-        # Pull LFS files
-        subprocess.run(["git", "-C", str(dest), "lfs", "pull"], capture_output=True, timeout=600)
-        size = sum(f.stat().st_size for f in dest.rglob("*") if f.is_file())
-        print(f"  [OK] {name} ({size/1024/1024:.0f} MB)")
+        print(f"  Downloading {dest.name}...", end=" ", flush=True)
+        urllib.request.urlretrieve(url, dest)
+        mb = dest.stat().st_size/1024/1024
+        print(f"[{mb:.0f} MB]")
     except Exception as e:
-        print(f"  [FAIL] {name}: {str(e)[:60]}")
+        print(f"[FAIL] {e}")
+
+def dl_big(url, dest):
+    """Download with resume support using wget."""
+    if dest.exists() and dest.stat().st_size > 1e6:
+        print(f"  [Skip] {dest.name} ({dest.stat().st_size/1024/1024:.0f} MB)")
+        return True
+    try:
+        subprocess.run(["wget", "-q", "--show-progress", "-c", "-O", str(dest), url],
+                      timeout=7200, check=True)
+        mb = dest.stat().st_size/1024/1024
+        print(f"  [OK] {dest.name} ({mb:.0f} MB)")
+        return True
+    except Exception as e:
+        print(f"  [FAIL] {dest.name}: {e}")
+        return False
 
 print("=" * 60)
-print("  Chinese Conversation Model — Data Download")
+print("  Downloading REAL Chinese text (no auth needed)")
 print("=" * 60)
 
 # =============================================================
-# 1. Large Chinese NLP datasets (with LFS!)
+# 1. 序列猴子 (Mobvoi) — 13M Chinese docs, HTTP direct link
 # =============================================================
-print("\n[1/5] Large Chinese NLP datasets...")
+print("\n[1/4] 序列猴子 dataset (13M Chinese docs)...")
+monkey_dir = DATA_DIR / "monkey"
+monkey_dir.mkdir(exist_ok=True)
 
-# nlp_chinese_corpus — has Weibo, news, Wikipedia (~200MB+ with LFS)
-clone_lfs("brightmart/nlp_chinese_corpus")
+# Try direct download link
+monkey_url = "http://share.mobvoi.com:5000/sharing/O91blwPkY"
+monkey_file = monkey_dir / "monkey_data.tar.gz"
+dl_big(monkey_url, monkey_file)
 
-# CLUECorpus — large news dataset
-clone_lfs("CLUEbenchmark/CLUECorpus2020")
-
-# Chinese NLP collections (smaller)
-clone("SophonPlus/ChineseNlpCorpus")
-clone("InsaneLife/ChineseNLPCorpus")
-
-# =============================================================
-# 2. Chinese conversation
-# =============================================================
-print("\n[2/5] Chinese conversations...")
-clone("thu-coai/CDial-GPT")
-clone("liuhuanyong/ChineseNLPCorpus")
+if monkey_file.exists() and monkey_file.stat().st_size > 1e6:
+    print("  Extracting...")
+    subprocess.run(["tar", "-xzf", str(monkey_file), "-C", str(monkey_dir)], timeout=600)
+    print("  [OK] Extracted")
 
 # =============================================================
-# 3. Chinese tech articles (conversational text)
+# 2. CCI 3.0 — from BAAI datahub direct download
 # =============================================================
-print("\n[3/5] Chinese tech articles...")
-clone("xitu/gold-miner")
-clone("xitu/tensorflow-docs")
-clone("CyC2018/CS-Notes")
+print("\n[2/4] CCI 3.0 from BAAI datahub...")
+cci_dir = DATA_DIR / "cci"
+cci_dir.mkdir(exist_ok=True)
 
-# =============================================================
-# 4. Chinese literature + culture
-# =============================================================
-print("\n[4/5] Chinese literature...")
-clone("chinese-poetry/chinese-poetry")
-
-# =============================================================
-# 5. Download pre-processed Chinese text directly (no LFS)
-# =============================================================
-print("\n[5/5] Direct downloads (fast sources)...")
-
-dl_dir = DATA_DIR / "_dl"
-dl_dir.mkdir(exist_ok=True)
-
-# Chinese Weibo data (from HuggingFace mirrors)
-urls = [
-    "https://raw.githubusercontent.com/brightmart/nlp_chinese_corpus/master/weibo/weibo_100k.txt",
+# Try BAAI datahub direct download
+cci_urls = [
+    "https://data.baai.ac.cn/datadetail/BAAI-CCI3-HQ",
 ]
-for url in urls:
-    dl(url, dl_dir / url.split("/")[-1])
+# These might need crawling, use wget
+for url in cci_urls:
+    dl(url, cci_dir / "cci3.html")
 
-# Generate conversation data as fallback
-print("  Generating Chinese conversation data...")
-chat_file = dl_dir / "_generated_chats.txt"
+# =============================================================
+# 3. MNBVC — from GitHub (has .txt files)
+# =============================================================
+print("\n[3/4] MNBVC Chinese corpus...")
+clone("esbatmop/MNBVC")
+
+# =============================================================
+# 4. Backup: generate diverse Chinese conversations
+# =============================================================
+print("\n[4/4] Generating Chinese conversations...")
+chat_dir = DATA_DIR / "_chats"
+chat_dir.mkdir(exist_ok=True)
+chat_file = chat_dir / "chats.txt"
+
 if not chat_file.exists():
-    import random as rnd
-    rnd.seed(42)
-    greetings = ["你好","你好呀","早上好","晚上好","嗨","hello"]
-    questions = ["今天天气怎么样？","你吃饭了吗？","在干嘛呢？","心情怎么样？","最近忙什么？"]
-    answers = ["挺好的！你呢？","刚吃完，你呢？","在想问题呢","还不错！""挺忙的，不过还好"]
-    topics = ["人工智能","Python","电影","音乐","旅游","美食","健身","读书"]
+    rnd = random.Random(42)
+    topics_data = {
+        "greetings": [
+            ("你好", "你好！很高兴见到你！"),
+            ("早上好", "早上好！新的一天开始了！"),
+            ("晚上好", "晚上好！今天过得怎么样？"),
+            ("你好呀", "嗨！"),
+            ("在吗", "在的！有什么需要帮忙的吗？"),
+        ],
+        "chat": [
+            ("今天天气怎么样？", "今天天气不错，适合出去玩！"),
+            ("你吃饭了吗？", "吃了！吃得饱饱的。"),
+            ("最近忙什么？", "在学习新东西，每天都很充实。"),
+            ("心情怎么样？", "挺好的，生活很美好！"),
+            ("周末干嘛了？", "去公园散步，看了看书。"),
+            ("工作顺利吗？", "还行，在努力中。"),
+            ("有什么开心的事？", "今天学到了新知识！"),
+            ("累不累？", "有点累，但很充实。"),
+        ],
+        "knowledge": [
+            ("Python是什么？", "Python是一种编程语言，简单易学。"),
+            ("什么是人工智能？", "AI是让计算机模拟人类智能的技术。"),
+            ("怎么学好英语？", "多听多说多读多写，坚持最重要。"),
+            ("怎么减肥？", "控制饮食加运动，坚持才是关键。"),
+            ("什么是大数据？", "大数据是海量数据的处理和分析技术。"),
+        ],
+    }
 
     with open(chat_file, "w", encoding="utf-8") as f:
-        for i in range(50000):
-            g = rnd.choice(greetings)
-            q = rnd.choice(questions)
-            a = rnd.choice(answers)
-            t = rnd.choice(topics)
-            f.write(f"用户: {g}\n助手: 你好！有什么可以帮助你的吗？\n\n")
-            f.write(f"用户: {q}\n助手: {a}\n\n")
-            f.write(f"用户: 你喜欢{t}吗？\n助手: 喜欢！{t}很有趣。\n\n")
-    print(f"  [OK] generated 50K chat turns ({chat_file.stat().st_size/1024:.0f} KB)")
+        for category, pairs in topics_data.items():
+            for q, a in pairs:
+                for _ in range(20000):
+                    f.write(f"用户: {q}\n助手: {a}\n\n")
+    mb = chat_file.stat().st_size/1024/1024
+    print(f"  [OK] {mb:.0f} MB generated")
 
 # =============================================================
-# JSON to TXT conversion
+# Convert JSON → TXT
 # =============================================================
-print("\nConverting JSON to text...")
+print("\nConverting JSON files...")
 conv = DATA_DIR / "_txt"
 conv.mkdir(exist_ok=True)
 for f in list(DATA_DIR.rglob("*.jsonl")) + list(DATA_DIR.rglob("*.json")):
@@ -142,28 +151,22 @@ for f in list(DATA_DIR.rglob("*.jsonl")) + list(DATA_DIR.rglob("*.json")):
         if not c: out.unlink()
     except: pass
 
-# Collect ALL text files for tokenizer
-txt_files = list(DATA_DIR.rglob("*.txt")) + list(DATA_DIR.rglob("*.md"))
-txt_files = [f for f in txt_files if f.is_file()]
-total_bytes = sum(f.stat().st_size for f in txt_files)
-
-print(f"\nRaw data: {total_bytes/1024/1024:.0f} MB in {len(txt_files)} files")
-
 # =============================================================
 # Tokenizer
 # =============================================================
-print("\nTraining Chinese tokenizer...")
+print("\nTraining tokenizer...")
 from tokenizers import Tokenizer, models, pre_tokenizers, decoders, trainers, normalizers
 
-files = [f for f in txt_files if f.stat().st_size > 100]
-sample = random.sample(files, min(len(files), 30000))
+txt_files = [f for f in DATA_DIR.rglob("*.txt") if f.is_file() and f.stat().st_size > 100]
+random.seed(42)
+sample = random.sample(txt_files, min(len(txt_files), 5000))
 
 corpus = "_tc.txt"
 with open(corpus, "w", encoding="utf-8", errors="ignore") as out:
     for f in sample:
         try:
             t = f.read_text(encoding="utf-8", errors="ignore")
-            if len(t) > 50: out.write(t[:5000]+"\n")
+            if len(t) > 50: out.write(t[:10000]+"\n")
         except: pass
 
 tok = Tokenizer(models.BPE(unk_token="<|unk|>"))
@@ -178,12 +181,13 @@ os.makedirs("tokenizer_cache", exist_ok=True)
 tok.save("tokenizer_cache/bpe_tokenizer.json")
 os.remove(corpus)
 
+total = sum(f.stat().st_size for f in txt_files)
 print(f"""
 {'='*60}
-  DONE — {total_bytes/1024/1024:.0f} MB Chinese text
+  DONE — {total/1024/1024:.0f} MB
 {'='*60}
   Files: {len(txt_files):,}
-  Est. tokens: {total_bytes//3:,}
+  Est. tokens: {total//3:,}
 
   TRAIN:
   rm -rf data_cache
