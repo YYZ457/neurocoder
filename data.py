@@ -104,9 +104,15 @@ class CodeTokenizer:
             with open(corpus_path, "w", encoding="utf-8", errors="ignore") as out:
                 for f_path in train_files:
                     try:
-                        text = open(f_path, encoding="utf-8", errors="ignore").read()
-                        if len(text) > 50:
-                            out.write(text[:10000] + "\n")
+                        size = os.path.getsize(f_path)
+                        if size < 100:
+                            continue
+                        # Sample more for large files
+                        sample_size = min(size, 5_000_000)  # Up to 5MB per file for good vocab
+                        with open(f_path, "r", encoding="utf-8", errors="ignore") as fh:
+                            text = fh.read(sample_size)
+                            if len(text) > 50:
+                                out.write(text + "\n")
                     except:
                         pass
             tokenizer.train([corpus_path], trainer)
