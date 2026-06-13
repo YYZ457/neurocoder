@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 One-stop data download: more Python repos + Chinese text corpus.
 Run: python download_all.py
@@ -161,28 +162,28 @@ print(f"1到10的平方: {squares}")
 # Python 函数 - 中文版
 
 def greet(name):
-    """打招呼函数。参数 name: 姓名"""
+    '''打招呼函数。参数 name: 姓名'''
     return f"你好, {name}!"
 
 def add(a, b):
-    """两数相加。返回和"""
+    '''两数相加。返回和'''
     return a + b
 
 def factorial(n):
-    """计算 n 的阶乘。使用递归实现。"""
+    '''计算 n 的阶乘。使用递归实现。'''
     if n <= 1:
         return 1
     return n * factorial(n - 1)
 
 def fibonacci(n):
-    """生成斐波那契数列的前 n 项。"""
+    '''生成斐波那契数列的前 n 项。'''
     result = [0, 1]
     for i in range(2, n):
         result.append(result[i-1] + result[i-2])
     return result
 
 def is_prime(n):
-    """判断一个数是否为质数。"""
+    '''判断一个数是否为质数。'''
     if n <= 1:
         return False
     for i in range(2, int(n**0.5) + 1):
@@ -263,7 +264,7 @@ def read_text_file(filepath):
         return f.read()
 
 def write_json(filepath, data):
-    """把数据保存为JSON文件"""
+    '''把数据保存为JSON文件'''
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
@@ -296,7 +297,7 @@ print(f"JSON读写测试: {loaded == test_data}")
 # 常用算法 - 中文版
 
 def bubble_sort(arr):
-    """冒泡排序。每次比较相邻的两个元素。"""
+    '''冒泡排序。每次比较相邻的两个元素。'''
     n = len(arr)
     for i in range(n):
         for j in range(0, n - i - 1):
@@ -305,7 +306,7 @@ def bubble_sort(arr):
     return arr
 
 def binary_search(arr, target):
-    """二分查找。在有序数组中查找目标值。"""
+    '''二分查找。在有序数组中查找目标值。'''
     left, right = 0, len(arr) - 1
     while left <= right:
         mid = (left + right) // 2
@@ -318,7 +319,7 @@ def binary_search(arr, target):
     return -1
 
 def dfs(graph, start, visited=None):
-    """深度优先搜索。"""
+    '''深度优先搜索。'''
     if visited is None:
         visited = set()
     visited.add(start)
@@ -328,7 +329,7 @@ def dfs(graph, start, visited=None):
     return visited
 
 def bfs(graph, start):
-    """广度优先搜索。"""
+    '''广度优先搜索。'''
     visited = set([start])
     queue = [start]
     while queue:

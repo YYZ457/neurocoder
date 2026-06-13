@@ -85,11 +85,9 @@ class CodeTokenizer:
             show_progress=True,
         )
 
-        # Search multiple possible paths for training data
+        # Search for training data (project-root-relative or absolute)
         search_paths = [
             "sample_data/source",
-            "D:/NeuroCoder/sample_data/source",
-            "/workspace/neurocoder/D:/NeuroCoder/sample_data/source",
         ]
         py_files = []
         for sp in search_paths:
@@ -371,7 +369,9 @@ class StreamingCodeDataset(IterableDataset):
                             while len(buffer) >= self.buffer_size:
                                 chunk = buffer.pop(0)
                                 yield self._to_tensors(chunk)
-                continue
+                    continue  # JSONL processed inline, skip to next file
+                else:
+                    continue  # Skip unsupported file types
             except Exception:
                 continue
 
