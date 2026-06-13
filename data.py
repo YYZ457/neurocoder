@@ -88,39 +88,40 @@ class CodeTokenizer:
         # Search for training data (project-root-relative or absolute)
         search_paths = [
             "sample_data/source",
+            "chinese_data",
         ]
-        py_files = []
+        train_files = []
         for sp in search_paths:
             p = Path(sp)
             if p.exists():
-                py_files = list(p.rglob("*.py"))[:5000]
-                if py_files:
-                    print(f"  Found data at: {sp}")
-                    break
-        if py_files:
-            files = [str(f) for f in py_files[:5000]]  # Up to 5000 files for training
-            print(f"  Training BPE from {len(files)} Python files...")
-            tokenizer.train(files, trainer)
-            # Save for reuse
+                train_files.extend(list(p.rglob("*.txt"))[:2000])
+                train_files.extend(list(p.rglob("*.py"))[:2000])
+        if train_files:
+            train_files = [str(f) for f in train_files[:4000]]
+            print(f"  Training BPE from {len(train_files)} files...")
+            # Write consolidated corpus for speed
+            corpus_path = os.path.join(self.cache_dir, "_train_corpus.txt")
+            with open(corpus_path, "w", encoding="utf-8", errors="ignore") as out:
+                for f_path in train_files:
+                    try:
+                        text = open(f_path, encoding="utf-8", errors="ignore").read()
+                        if len(text) > 50:
+                            out.write(text[:10000] + "\n")
+                    except:
+                        pass
+            tokenizer.train([corpus_path], trainer)
+            os.remove(corpus_path)
             os.makedirs(self.cache_dir, exist_ok=True)
             tokenizer.save(self._tokenizer_path)
-            print(f"  BPE tokenizer saved to {self._tokenizer_path}")
+            print(f"  BPE tokenizer saved (vocab={tokenizer.get_vocab_size()})")
         else:
             # Need to pre-train with some text
-            print(f"  No Python files found, training on sample text...")
+            print(f"  No training files found, using sample text...")
             sample_texts = [
-                "# Python code\n",
-                "def function():\n    return 42\n",
-                "class MyClass:\n    pass\n",
-                "import os\nimport sys\n",
-                "# TODO: write a function to sort a list\n",
-                "for i in range(10):\n    print(i)\n",
+                "# Python code\n", "def function():\n    return 42\n",
+                "class MyClass:\n    pass\n", "import os\nimport sys\n",
+                "你好！\n用户: 你好\n助手: 你好！有什么可以帮助你的吗？\n",
             ]
-            trainer = trainers.BpeTrainer(
-                vocab_size=min(self.vocab_size, 8192),
-                special_tokens=special_tokens,
-                min_frequency=1,
-            )
             tokenizer.train_from_iterator(sample_texts, trainer)
             tokenizer.save(self._tokenizer_path)
             print(f"  Minimal tokenizer saved (vocab={tokenizer.get_vocab_size()})")
