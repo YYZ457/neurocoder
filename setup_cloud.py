@@ -24,10 +24,10 @@ print("=" * 60)
 # =========================================================================
 # HELPER
 # =========================================================================
-def make_qa(questions, answers, repeat=2000):
-    """Generate Q&A pairs from templates."""
+def make_qa(pairs, repeat=2000):
+    """Generate Q&A pairs from (question, answer) tuples."""
     out = []
-    for q, a in questions:
+    for q, a in pairs:
         for _ in range(repeat):
             out.append(f"用户: {q}\n助手: {a}\n")
     return out
