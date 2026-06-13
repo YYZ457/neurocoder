@@ -1,155 +1,117 @@
 #!/usr/bin/env python3
-"""NeuroCoder Cloud — GBs of REAL Chinese text, no auth needed."""
-import os, subprocess, urllib.request, json, random, re, shutil, gzip
+"""NeuroCoder Cloud — GBs of REAL Chinese data from open HuggingFace datasets."""
+import os, subprocess, json, random, sys
 from pathlib import Path
 os.environ["GIT_TERMINAL_PROMPT"] = "0"
-GIT = ["git", "-c", "http.sslVerify=false"]
 DATA_DIR = Path("chinese_data")
 DATA_DIR.mkdir(exist_ok=True, parents=True)
 
-def clone(repo, subdir=""):
-    name = repo.split("/")[-1]
-    dest = Path(DATA_DIR if not subdir else DATA_DIR/subdir) / name
-    if dest.exists(): return
-    try:
-        subprocess.run(GIT + ["clone", "--depth", "1", f"https://github.com/{repo}.git", str(dest)],
-                      capture_output=True, timeout=300, check=True)
-        print(f"  [OK] {name}")
-    except: print(f"  [FAIL] {name}")
+print("=" * 60)
+print("  Installing datasets library...")
+print("=" * 60)
+subprocess.run([sys.executable, "-m", "pip", "install", "-q", "datasets", "huggingface_hub"], check=True)
 
-def dl(url, dest):
-    if dest.exists(): return
-    try:
-        print(f"  Downloading {dest.name}...", end=" ", flush=True)
-        urllib.request.urlretrieve(url, dest)
-        mb = dest.stat().st_size/1024/1024
-        print(f"[{mb:.0f} MB]")
-    except Exception as e:
-        print(f"[FAIL] {e}")
+from datasets import load_dataset
+from huggingface_hub import login
 
-def dl_big(url, dest):
-    """Download with resume support using wget."""
-    if dest.exists() and dest.stat().st_size > 1e6:
-        print(f"  [Skip] {dest.name} ({dest.stat().st_size/1024/1024:.0f} MB)")
+def save_docs(ds, out_path, max_docs, name):
+    """Save documents from a streaming dataset to a text file."""
+    if out_path.exists():
+        print(f"  [Skip] {out_path.name}")
         return True
-    try:
-        subprocess.run(["wget", "-q", "--show-progress", "-c", "-O", str(dest), url],
-                      timeout=7200, check=True)
-        mb = dest.stat().st_size/1024/1024
-        print(f"  [OK] {dest.name} ({mb:.0f} MB)")
-        return True
-    except Exception as e:
-        print(f"  [FAIL] {dest.name}: {e}")
-        return False
+    count = 0
+    with open(out_path, "w", encoding="utf-8") as f:
+        for i, example in enumerate(ds):
+            if i >= max_docs:
+                break
+            text = example.get("text", "")
+            if len(text) > 50:
+                f.write(text.strip() + "\n\n")
+                count += 1
+                if count % 50000 == 0:
+                    print(f"    {count} docs...")
+            if i % 100 == 0 and i > 0 and count == 0:
+                pass  # No valid docs yet
+    mb = out_path.stat().st_size / 1024 / 1024
+    print(f"  [OK] {name}: {count:,} docs ({mb:.0f} MB)")
+    return count > 0
 
 print("=" * 60)
-print("  Downloading REAL Chinese text (no auth needed)")
+print("  Downloading REAL Chinese text from HuggingFace")
 print("=" * 60)
 
 # =============================================================
-# 1. 序列猴子 (Mobvoi) — 13M Chinese docs, HTTP direct link
+# 1. OpenCSG Fineweb-edu-chinese (420B tokens, no auth)
 # =============================================================
-print("\n[1/4] 序列猴子 dataset (13M Chinese docs)...")
-monkey_dir = DATA_DIR / "monkey"
-monkey_dir.mkdir(exist_ok=True)
+print("\n[1/4] Fineweb-edu-chinese (420B token corpus)...")
+fw_dir = DATA_DIR / "fineweb"
+fw_dir.mkdir(exist_ok=True)
 
-# Try direct download link
-monkey_url = "http://share.mobvoi.com:5000/sharing/O91blwPkY"
-monkey_file = monkey_dir / "monkey_data.tar.gz"
-dl_big(monkey_url, monkey_file)
-
-if monkey_file.exists() and monkey_file.stat().st_size > 1e6:
-    print("  Extracting...")
-    subprocess.run(["tar", "-xzf", str(monkey_file), "-C", str(monkey_dir)], timeout=600)
-    print("  [OK] Extracted")
+try:
+    ds = load_dataset("opencsg/chinese-fineweb-edu", split="train", streaming=True)
+    save_docs(ds, fw_dir / "fineweb_sample.txt", 200000, "Fineweb")
+except Exception as e:
+    print(f"  [FAIL] Fineweb: {str(e)[:80]}")
 
 # =============================================================
-# 2. CCI 3.0 — from BAAI datahub direct download
+# 2. CCI3.0-HQ (500GB high-quality Chinese, open)
 # =============================================================
-print("\n[2/4] CCI 3.0 from BAAI datahub...")
-cci_dir = DATA_DIR / "cci"
+print("\n[2/4] CCI3.0-HQ (500GB high-quality Chinese)...")
+cci_dir = DATA_DIR / "cci3"
 cci_dir.mkdir(exist_ok=True)
 
-# Try BAAI datahub direct download
-cci_urls = [
-    "https://data.baai.ac.cn/datadetail/BAAI-CCI3-HQ",
-]
-# These might need crawling, use wget
-for url in cci_urls:
-    dl(url, cci_dir / "cci3.html")
+try:
+    ds = load_dataset("BAAI/CCI3-HQ", split="train", streaming=True)
+    save_docs(ds, cci_dir / "cci3_hq_sample.txt", 150000, "CCI3-HQ")
+except Exception as e:
+    print(f"  [FAIL] CCI3-HQ: {str(e)[:80]}")
+    # Try with token=None for public access
+    try:
+        ds = load_dataset("BAAI/CCI3-HQ", split="train", streaming=True, token=None)
+        save_docs(ds, cci_dir / "cci3_hq_sample.txt", 150000, "CCI3-HQ")
+    except Exception as e2:
+        print(f"  [FAIL] CCI3-HQ (no token): {str(e2)[:80]}")
 
 # =============================================================
-# 3. MNBVC — from GitHub (has .txt files)
+# 3. MNBVC (open Chinese corpus)
 # =============================================================
 print("\n[3/4] MNBVC Chinese corpus...")
-clone("esbatmop/MNBVC")
+mnbvc_dir = DATA_DIR / "mnbvc"
+mnbvc_dir.mkdir(exist_ok=True)
+
+try:
+    ds = load_dataset("liwu/MNBVC", split="train", streaming=True)
+    save_docs(ds, mnbvc_dir / "mnbvc_sample.txt", 100000, "MNBVC")
+except Exception as e:
+    print(f"  [FAIL] MNBVC: {str(e)[:80]}")
 
 # =============================================================
-# 4. Backup: generate diverse Chinese conversations
+# 4. Generate Chinese conversations (backup)
 # =============================================================
-print("\n[4/4] Generating Chinese conversations...")
+print("\n[4/4] Chinese conversations (backup)...")
 chat_dir = DATA_DIR / "_chats"
 chat_dir.mkdir(exist_ok=True)
 chat_file = chat_dir / "chats.txt"
 
 if not chat_file.exists():
     rnd = random.Random(42)
-    topics_data = {
-        "greetings": [
-            ("你好", "你好！很高兴见到你！"),
-            ("早上好", "早上好！新的一天开始了！"),
-            ("晚上好", "晚上好！今天过得怎么样？"),
-            ("你好呀", "嗨！"),
-            ("在吗", "在的！有什么需要帮忙的吗？"),
-        ],
-        "chat": [
-            ("今天天气怎么样？", "今天天气不错，适合出去玩！"),
-            ("你吃饭了吗？", "吃了！吃得饱饱的。"),
-            ("最近忙什么？", "在学习新东西，每天都很充实。"),
-            ("心情怎么样？", "挺好的，生活很美好！"),
-            ("周末干嘛了？", "去公园散步，看了看书。"),
-            ("工作顺利吗？", "还行，在努力中。"),
-            ("有什么开心的事？", "今天学到了新知识！"),
-            ("累不累？", "有点累，但很充实。"),
-        ],
-        "knowledge": [
-            ("Python是什么？", "Python是一种编程语言，简单易学。"),
-            ("什么是人工智能？", "AI是让计算机模拟人类智能的技术。"),
-            ("怎么学好英语？", "多听多说多读多写，坚持最重要。"),
-            ("怎么减肥？", "控制饮食加运动，坚持才是关键。"),
-            ("什么是大数据？", "大数据是海量数据的处理和分析技术。"),
-        ],
-    }
-
+    pairs = [
+        ("你好", "你好！很高兴见到你！"),
+        ("早上好", "早上好！"),
+        ("今天天气怎么样？", "今天天气不错！"),
+        ("你吃饭了吗？", "吃了！你呢？"),
+        ("在干嘛？", "在和你聊天呀！"),
+        ("心情怎么样？", "很好！"),
+        ("晚安", "晚安，好梦！"),
+        ("谢谢", "不客气！"),
+        ("Python是什么？", "Python是一种编程语言。"),
+        ("什么是AI？", "人工智能的简称。"),
+    ]
     with open(chat_file, "w", encoding="utf-8") as f:
-        for category, pairs in topics_data.items():
-            for q, a in pairs:
-                for _ in range(20000):
-                    f.write(f"用户: {q}\n助手: {a}\n\n")
-    mb = chat_file.stat().st_size/1024/1024
-    print(f"  [OK] {mb:.0f} MB generated")
-
-# =============================================================
-# Convert JSON → TXT
-# =============================================================
-print("\nConverting JSON files...")
-conv = DATA_DIR / "_txt"
-conv.mkdir(exist_ok=True)
-for f in list(DATA_DIR.rglob("*.jsonl")) + list(DATA_DIR.rglob("*.json")):
-    if "node_modules" in str(f): continue
-    out = conv / f"{f.parent.name}_{f.stem}.txt"
-    if out.exists(): continue
-    c = 0
-    try:
-        with open(out, "w", encoding="utf-8") as fo:
-            for line in open(f, encoding="utf-8", errors="ignore"):
-                try:
-                    item = json.loads(line)
-                    txt = " ".join(str(v) for v in item.values() if isinstance(v, str) and len(v)>5)
-                    if txt: fo.write(txt+"\n"); c+=1
-                except: pass
-        if not c: out.unlink()
-    except: pass
+        for q, a in pairs:
+            for _ in range(50000):
+                f.write(f"用户: {q}\n助手: {a}\n\n")
+    print(f"  [OK] {chat_file.stat().st_size/1024/1024:.0f} MB generated")
 
 # =============================================================
 # Tokenizer
@@ -157,7 +119,7 @@ for f in list(DATA_DIR.rglob("*.jsonl")) + list(DATA_DIR.rglob("*.json")):
 print("\nTraining tokenizer...")
 from tokenizers import Tokenizer, models, pre_tokenizers, decoders, trainers, normalizers
 
-txt_files = [f for f in DATA_DIR.rglob("*.txt") if f.is_file() and f.stat().st_size > 100]
+txt_files = [f for f in DATA_DIR.rglob("*.txt") if f.is_file() and f.stat().st_size > 1000]
 random.seed(42)
 sample = random.sample(txt_files, min(len(txt_files), 5000))
 
