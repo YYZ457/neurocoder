@@ -56,7 +56,7 @@ class NeuroCoderConfig:
     grad_clip: float = 1.0
 
     # Loss
-    focal_loss_gamma: float = 2.0  # Focal loss gamma (0 = standard CE)
+    focal_loss_gamma: float = 0.5  # Focal loss gamma (0 = standard CE)
 
     # Precision & memory
     use_bf16: bool = True         # BF16 on 4060 for training

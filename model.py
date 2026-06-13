@@ -463,7 +463,11 @@ class HierarchicalCodeMixer(nn.Module):
         self.level_embed = nn.Parameter(torch.randn(3, config.d_model) * 0.02)
 
     def _pool(self, x: torch.Tensor, pool_size: int) -> torch.Tensor:
-        """Pool sequence by factor of pool_size using learned linear + mean."""
+        """Pool sequence by factor of pool_size using mean pooling.
+
+        Causal: window N only sees tokens from windows [0..N-1].
+        First window is zero-padded so no future information leaks.
+        """
         B, L, D = x.shape
         # Pad to multiple of pool_size
         pad_len = (pool_size - L % pool_size) % pool_size
@@ -472,7 +476,9 @@ class HierarchicalCodeMixer(nn.Module):
         L_padded = x.shape[1]
         # Reshape and pool
         x = x.reshape(B, L_padded // pool_size, pool_size, D)
-        return x.mean(dim=2)  # (B, L//pool_size, D)
+        pooled = x.mean(dim=2)  # (B, num_windows, D)
+        # Causal shift: window N sees info from windows [0..N-1] only
+        return F.pad(pooled, (0, 0, 1, 0))[:, :-1, :]
 
     def _broadcast(self, x_small: torch.Tensor, target_len: int) -> torch.Tensor:
         """Broadcast back from pooled to original length."""

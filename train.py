@@ -311,7 +311,7 @@ def train(
             )
 
             current_lr = scheduler.get_last_lr()[0]
-            stats.update(accum_loss, accum_ce, accum_aux, current_lr, tokens_per_step)
+            stats.update(accum_loss, accum_ce, accum_aux, current_lr, tokens_per_step, ce_raw=accum_ce_raw)
 
             step_time = time.time() - step_timer
             step_timer = time.time()
