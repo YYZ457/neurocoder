@@ -276,13 +276,29 @@ class PythonCodeDataset(Dataset):
 
         for code_file in tqdm(all_files, desc="  Tokenizing", unit="file"):
             try:
-                # Read only first 50MB to avoid OOM on huge files
                 size = code_file.stat().st_size
-                max_read = min(size, 50 * 1024 * 1024) if size > 100_000_000 else size
-                with open(code_file, "r", encoding="utf-8", errors="ignore") as fh:
-                    code = fh.read(max_read)
-                chunks = self._tokenize_and_chunk(code)
-                self.examples.extend(chunks)
+                # For large files (>100MB), stream line-by-line to avoid OOM
+                if size > 100_000_000:
+                    buffer = []
+                    buf_len = 0
+                    for line in open(code_file, "r", encoding="utf-8", errors="ignore"):
+                        buffer.append(line)
+                        buf_len += len(line)
+                        if buf_len >= self.max_seq_len * 4:  # ~4 chars per token
+                            text = "".join(buffer)
+                            chunks = self._tokenize_and_chunk(text)
+                            self.examples.extend(chunks)
+                            buffer = []
+                            buf_len = 0
+                    # Process remaining
+                    if buffer:
+                        text = "".join(buffer)
+                        chunks = self._tokenize_and_chunk(text)
+                        self.examples.extend(chunks)
+                else:
+                    code = code_file.read_text(encoding="utf-8")
+                    chunks = self._tokenize_and_chunk(code)
+                    self.examples.extend(chunks)
             except Exception as e:
                 pass  # Skip unreadable files silently
 
