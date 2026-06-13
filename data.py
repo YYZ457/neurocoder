@@ -241,6 +241,24 @@ class PythonCodeDataset(Dataset):
                 chunks.append(chunk)
         return chunks
 
+    def _get_text_from_item(self, item: dict) -> str:
+        """Extract text from a JSON/dict item, trying common Chinese dataset fields."""
+        for key in ["instruction", "input", "output", "q", "a", "question", "answer",
+                     "content", "text", "sentence", "query", "response",
+                     "code", "conversation", "messages", "chat", "reply"]:
+            if key in item and isinstance(item[key], str) and len(item[key]) > 5:
+                return item[key]
+        # Multi-field: concatenate instruction + output
+        if "instruction" in item and "output" in item:
+            return f"{item['instruction']}\n{item['output']}"
+        if "q" in item and "a" in item:
+            return f"问: {item['q']}\n答: {item['a']}"
+        if "question" in item and "answer" in item:
+            return f"问: {item['question']}\n答: {item['answer']}"
+        # Fallback: concat all string values
+        texts = [str(v) for v in item.values() if isinstance(v, str) and len(v) > 5]
+        return " ".join(texts) if texts else ""
+
     def _load_from_directory(self, path: Path):
         """Load all .py and .txt/.md files from a directory tree."""
         py_files = list(path.rglob("*.py"))
@@ -258,14 +276,20 @@ class PythonCodeDataset(Dataset):
                 pass  # Skip unreadable files silently
 
     def _load_from_jsonl(self, path: Path):
-        """Load from JSONL with 'code' or 'content' field."""
+        """Load from JSONL with Chinese dataset field names."""
         with open(path, "r", encoding="utf-8") as f:
             for line in f:
                 try:
                     item = json.loads(line)
-                    code = item.get("code") or item.get("content") or item.get("text", "")
-                    chunks = self._tokenize_and_chunk(code)
-                    self.examples.extend(chunks)
+                    if isinstance(item, dict):
+                        code = self._get_text_from_item(item)
+                    elif isinstance(item, str):
+                        code = item
+                    else:
+                        continue
+                    if len(code) > 10:
+                        chunks = self._tokenize_and_chunk(code)
+                        self.examples.extend(chunks)
                 except Exception:
                     continue
 
@@ -273,11 +297,13 @@ class PythonCodeDataset(Dataset):
         """Load from JSON file (list of strings or objects)."""
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
+        if isinstance(data, dict):
+            data = [data]
         for item in data:
             if isinstance(item, str):
                 code = item
             elif isinstance(item, dict):
-                code = item.get("code") or item.get("content") or item.get("text", "")
+                code = self._get_text_from_item(item)
             else:
                 continue
             chunks = self._tokenize_and_chunk(code)
