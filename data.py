@@ -277,14 +277,15 @@ class PythonCodeDataset(Dataset):
         for code_file in tqdm(all_files, desc="  Tokenizing", unit="file"):
             try:
                 size = code_file.stat().st_size
-                # For large files (>100MB), stream line-by-line to avoid OOM
+                # For large files (>100MB), stream in large chunks to avoid OOM
                 if size > 100_000_000:
                     buffer = []
                     buf_len = 0
+                    chunk_size = 10 * 1024 * 1024  # 10MB per chunk
                     for line in open(code_file, "r", encoding="utf-8", errors="ignore"):
                         buffer.append(line)
                         buf_len += len(line)
-                        if buf_len >= self.max_seq_len * 4:  # ~4 chars per token
+                        if buf_len >= chunk_size:
                             text = "".join(buffer)
                             chunks = self._tokenize_and_chunk(text)
                             self.examples.extend(chunks)
