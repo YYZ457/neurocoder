@@ -335,9 +335,9 @@ def train(
                 save_checkpoint(model, optimizer, scheduler, scaler, stats, model_config,
                                os.path.join(train_config.output_dir, "latest.pt"))
                 print(f"  [Save] Checkpoint saved at step {global_step}")
-                # Keep only last 2 checkpoints to save disk space
+                # Keep only the latest checkpoint to save disk space
                 old_ckpts = sorted(Path(train_config.output_dir).glob("checkpoint-*.pt"))
-                for old in old_ckpts[:-2]:
+                for old in old_ckpts[:-1]:
                     old.unlink(missing_ok=True)
                     print(f"  [Clean] Removed old checkpoint: {old.name}")
 
