@@ -29,7 +29,7 @@ import torch
 import torch.nn as nn
 from torch.amp import GradScaler, autocast
 from torch.optim import AdamW
-from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
+from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, LinearLR, SequentialLR
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -212,10 +212,12 @@ def train(
         end_factor=1.0,
         total_iters=model_config.warmup_steps,
     )
-    cosine_scheduler = CosineAnnealingLR(
+    # Cosine annealing with restarts (T_0 = restart every 10000 steps)
+    cosine_scheduler = CosineAnnealingWarmRestarts(
         optimizer,
-        T_max=model_config.max_steps - model_config.warmup_steps,
-        eta_min=model_config.learning_rate * 0.01,
+        T_0=10000,
+        T_mult=2,
+        eta_min=model_config.learning_rate * 0.1,
     )
     scheduler = SequentialLR(
         optimizer,
