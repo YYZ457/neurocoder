@@ -144,47 +144,39 @@ class SelectiveSSM(nn.Module):
 
     def _selective_scan(self, u, delta, A, B_ssm, C_ssm, D):
         """
-        Fast vectorized selective scan using cumprod/cumsum.
+        Numerically stable parallel selective scan.
 
-        The recurrence: h_t = a_t * h_{t-1} + b_t  (h_0 = 0)
-        has closed-form solution:
-            h_t = p_t * cumsum(b_i / p_i)[t]
-        where p_t = cumprod(a_i)[t]
+        The recurrence h_t = a_t * h_{t-1} + b_t  (h_0 = 0) is a prefix scan
+        under the associative operator
+            (a1, b1) o (a2, b2) = (a1 * a2, a2 * b1 + b2)
+        evaluated here with a Hillis-Steele scan: log2(L) tensor steps,
+        only multiplies and adds.
 
-        This replaces the O(L) Python loop with pure CUDA ops.
-        ~100x faster than sequential Python loop.
+        The previous closed form h_t = p_t * cumsum(b_i / p_i) with
+        p_t = cumprod(a_i) underflowed: with a_t as small as exp(-8), p_t
+        dropped below the 1e-12 clamp within a few tokens and b / p
+        corrupted every later state. Here a decaying state underflowing to
+        0 is the correct answer, so nothing needs clamping.
         """
-        B, L, ID = u.shape
-        N = self.state_dim
-
         # --- Discretization ---
-        delta_exp = delta.unsqueeze(-1)         # (B, L, ID, 1)
-        A_exp = A.unsqueeze(0).unsqueeze(0)      # (1, 1, ID, N)
-        A_bar = torch.exp(delta_exp * A_exp)     # (B, L, ID, N) ∈ (0, 1]
-        A_bar = A_bar.clamp(min=1e-8, max=1.0)
+        delta_exp = delta.unsqueeze(-1)                      # (B, L, ID, 1)
+        a = torch.exp(delta_exp * A.unsqueeze(0).unsqueeze(0))  # (B, L, ID, N) in (0, 1]
+        b = delta_exp * B_ssm.unsqueeze(2) * u.unsqueeze(-1)    # (B, L, ID, N)
 
-        B_bar = delta_exp * B_ssm.unsqueeze(2)   # (B, L, ID, N)
-        u_exp = u.unsqueeze(-1)                  # (B, L, ID, 1)
-        b = B_bar * u_exp                        # (B, L, ID, N)
+        # --- Parallel prefix scan along L ---
+        L = u.shape[1]
+        step = 1
+        while step < L:
+            a_prev = torch.cat([torch.ones_like(a[:, :step]), a[:, :-step]], dim=1)
+            b_prev = torch.cat([torch.zeros_like(b[:, :step]), b[:, :-step]], dim=1)
+            b = a * b_prev + b
+            a = a * a_prev
+            step *= 2
+        h = b                                                # (B, L, ID, N)
 
-        # --- Cumprod solution ---
-        # p_t = cumprod_{i=1}^{t} a_i
-        log_A = torch.log(A_bar.clamp(min=1e-12))  # (B, L, ID, N)
-        log_p = torch.cumsum(log_A, dim=1)          # (B, L, ID, N)
-        p = torch.exp(log_p)                         # (B, L, ID, N)
-
-        # q_t = b_t / p_t (rescaled input)
-        q = b / p.clamp(min=1e-12)                  # (B, L, ID, N)
-
-        # h_t = p_t * cumsum(q)[t]
-        h = p * torch.cumsum(q, dim=1)              # (B, L, ID, N)
-
-        # y_t = C_t @ h_t + D * u_t
-        # C_ssm: (B, L, N) → (B, L, 1, N)
-        # h: (B, L, ID, N) → sum over N
-        y = (C_ssm.unsqueeze(2) * h).sum(dim=-1)    # (B, L, ID)
-        y = y + D.unsqueeze(0).unsqueeze(0) * u     # skip connection
-
+        # y_t = C_t . h_t + D * u_t
+        y = (C_ssm.unsqueeze(2) * h).sum(dim=-1)             # (B, L, ID)
+        y = y + D.unsqueeze(0).unsqueeze(0) * u              # skip connection
         return y  # (B, L, ID)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
